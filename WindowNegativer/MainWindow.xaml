@@ -62,7 +62,57 @@
                         </Style>
                     </Button.Style>
                 </Button>
-                <TextBlock Text="⬛ Negativer" Foreground="White" VerticalAlignment="Center"
+                <Button x:Name="BtnMaximize" Content="☐" Click="BtnMaximize_Click"
+                        DockPanel.Dock="Right" Width="32" Height="28"
+                        Background="Transparent" Foreground="White" BorderThickness="0"
+                        FontSize="14" Cursor="Hand" VerticalAlignment="Center">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Bd" Background="Transparent" Padding="4,0">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#555555"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Setter Property="Foreground" Value="White"/>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button x:Name="BtnMinimize" Content="─" Click="BtnMinimize_Click"
+                        DockPanel.Dock="Right" Width="32" Height="28"
+                        Background="Transparent" Foreground="White" BorderThickness="0"
+                        FontSize="14" Cursor="Hand" VerticalAlignment="Center">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Bd" Background="Transparent" Padding="4,0">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#555555"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Setter Property="Foreground" Value="White"/>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <TextBlock Text="⬛ Negativer"
                            FontSize="12" IsHitTestVisible="False"/>
             </DockPanel>
         </Border>

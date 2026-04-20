@@ -26,6 +26,8 @@ namespace WindowNegativer
         internal const double TitleBarHeight = 28;
         internal const double FramePadding = 4;
 
+        private Rect? _restoreBounds;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -35,6 +37,7 @@ namespace WindowNegativer
             LocationChanged += (_, _) => UpdateOverlayBounds();
             SizeChanged += (_, _) => UpdateOverlayBounds();
             IsVisibleChanged += (_, _) => UpdateOverlayVisibility();
+            StateChanged += (_, _) => UpdateOverlayBounds();
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -104,6 +107,33 @@ namespace WindowNegativer
         private void BtnClose_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void BtnMinimize_Click(object sender, RoutedEventArgs e)
+        {
+            WindowState = WindowState.Minimized;
+        }
+
+        private void BtnMaximize_Click(object sender, RoutedEventArgs e)
+        {
+            if (_restoreBounds.HasValue)
+            {
+                var r = _restoreBounds.Value;
+                _restoreBounds = null;
+                Left = r.Left;
+                Top = r.Top;
+                Width = r.Width;
+                Height = r.Height;
+            }
+            else
+            {
+                _restoreBounds = new Rect(Left, Top, Width, Height);
+                var area = SystemParameters.WorkArea;
+                Left = area.Left;
+                Top = area.Top;
+                Width = area.Width;
+                Height = area.Height;
+            }
         }
 
         private void Resize_MouseDown(object sender, MouseButtonEventArgs e)

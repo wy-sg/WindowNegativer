@@ -42,15 +42,21 @@ namespace WindowNegativer
         [DllImport("gdi32.dll")]
         private static extern bool DeleteObject(IntPtr hObject);
 
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_TRANSPARENT = 0x00000020;
         private const int WS_EX_TOOLWINDOW = 0x00000080;
         private const int WS_EX_NOACTIVATE = 0x08000000;
         private const uint SRCCOPY = 0x00CC0020;
         private const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
+        private const int SW_HIDE = 0;
+        private const int SW_SHOWNOACTIVATE = 4;
 
         private readonly DispatcherTimer _timer;
         private readonly Image _image;
+        private bool _excludedFromCapture;
 
         public NegativeOverlayWindow()
         {
@@ -88,7 +94,7 @@ namespace WindowNegativer
             var hwnd = new WindowInteropHelper(this).Handle;
             int exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
             SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
-            SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
+            _excludedFromCapture = SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
         }
 
         public void UpdateFromFrame(Window frame, double titleBarHeight, double framePadding)
@@ -112,6 +118,13 @@ namespace WindowNegativer
                 return;
             }
 
+            IntPtr hwnd = IntPtr.Zero;
+            if (!_excludedFromCapture)
+            {
+                hwnd = new WindowInteropHelper(this).Handle;
+                ShowWindow(hwnd, SW_HIDE);
+            }
+
             IntPtr hdcScreen = CreateDC("DISPLAY", null, null, IntPtr.Zero);
             IntPtr hdcMem = CreateCompatibleDC(hdcScreen);
             IntPtr hBitmap = CreateCompatibleBitmap(hdcScreen, w, h);
@@ -119,6 +132,11 @@ namespace WindowNegativer
 
             BitBlt(hdcMem, 0, 0, w, h, hdcScreen, x, y, SRCCOPY);
             SelectObject(hdcMem, hOld);
+
+            if (!_excludedFromCapture && hwnd != IntPtr.Zero)
+            {
+                ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            }
 
             var bmpSource = Imaging.CreateBitmapSourceFromHBitmap(
                 hBitmap,
