@@ -35,7 +35,9 @@
 
         <!-- Title bar -->
         <Border Height="28" VerticalAlignment="Top" Background="#DD222222"
-                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"
+                MouseMove="TitleBar_MouseMove"
+                MouseLeftButtonUp="TitleBar_MouseLeftButtonUp">
             <DockPanel Margin="8,0,0,0">
                 <Button x:Name="BtnClose" Content="✕" Click="BtnClose_Click"
                         DockPanel.Dock="Right" Width="32" Height="28"

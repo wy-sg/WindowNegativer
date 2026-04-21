@@ -27,6 +27,8 @@ namespace WindowNegativer
         internal const double FramePadding = 4;
 
         private Rect? _restoreBounds;
+        private bool _titleBarPressed;
+        private Point _titleBarPressedPoint;
 
         public MainWindow()
         {
@@ -100,8 +102,77 @@ namespace WindowNegativer
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (e.ClickCount == 1)
-                DragMove();
+            if (e.ClickCount == 2)
+            {
+                ToggleMaximize();
+                return;
+            }
+
+            if (e.ChangedButton != MouseButton.Left)
+            {
+                return;
+            }
+
+            _titleBarPressed = true;
+            _titleBarPressedPoint = e.GetPosition(this);
+
+            if (_restoreBounds.HasValue)
+            {
+                if (sender is IInputElement inputElement)
+                {
+                    Mouse.Capture(inputElement);
+                }
+
+                return;
+            }
+
+            DragMove();
+        }
+
+        private void TitleBar_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_titleBarPressed || e.LeftButton != MouseButtonState.Pressed || !_restoreBounds.HasValue)
+            {
+                return;
+            }
+
+            var currentPoint = e.GetPosition(this);
+            if (Math.Abs(currentPoint.X - _titleBarPressedPoint.X) < SystemParameters.MinimumHorizontalDragDistance
+                && Math.Abs(currentPoint.Y - _titleBarPressedPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+            {
+                return;
+            }
+
+            var restoreBounds = _restoreBounds.Value;
+            var screenPoint = PointToScreen(currentPoint);
+            double horizontalRatio = ActualWidth <= 0 ? 0.5 : currentPoint.X / ActualWidth;
+            horizontalRatio = Math.Max(0.0, Math.Min(1.0, horizontalRatio));
+
+            _restoreBounds = null;
+            Left = screenPoint.X - (restoreBounds.Width * horizontalRatio);
+            Top = Math.Max(0, screenPoint.Y - (TitleBarHeight / 2));
+            Width = restoreBounds.Width;
+            Height = restoreBounds.Height;
+
+            UpdateOverlayBounds();
+
+            if (sender is IInputElement inputElement)
+            {
+                Mouse.Capture(null);
+            }
+
+            _titleBarPressed = false;
+            DragMove();
+        }
+
+        private void TitleBar_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            _titleBarPressed = false;
+
+            if (sender is IInputElement)
+            {
+                Mouse.Capture(null);
+            }
         }
 
         private void BtnClose_Click(object sender, RoutedEventArgs e)
@@ -115,6 +186,11 @@ namespace WindowNegativer
         }
 
         private void BtnMaximize_Click(object sender, RoutedEventArgs e)
+        {
+            ToggleMaximize();
+        }
+
+        private void ToggleMaximize()
         {
             if (_restoreBounds.HasValue)
             {
@@ -134,6 +210,8 @@ namespace WindowNegativer
                 Width = area.Width;
                 Height = area.Height;
             }
+
+            UpdateOverlayBounds();
         }
 
         private void Resize_MouseDown(object sender, MouseButtonEventArgs e)
