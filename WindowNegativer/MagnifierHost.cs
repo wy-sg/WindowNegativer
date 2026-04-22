@@ -6,17 +6,6 @@ namespace WindowNegativer
 {
     internal sealed class MagnifierHost : HwndHost
     {
-        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        private delegate bool MagImageScalingCallback(
-            IntPtr hwnd,
-            IntPtr srcdata,
-            MagImageHeader srcheader,
-            IntPtr destdata,
-            MagImageHeader destheader,
-            RectNative unclipped,
-            RectNative clipped,
-            IntPtr dirty);
-
         [StructLayout(LayoutKind.Sequential)]
         private struct RectNative
         {
@@ -24,17 +13,6 @@ namespace WindowNegativer
             public int Top;
             public int Right;
             public int Bottom;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct MagImageHeader
-        {
-            public uint Width;
-            public uint Height;
-            public Guid Format;
-            public uint Stride;
-            public uint Offset;
-            public UIntPtr cbSize;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -81,23 +59,29 @@ namespace WindowNegativer
             public float M44;
         }
 
-        [DllImport("Magnification.dll", CallingConvention = CallingConvention.StdCall)]
+        [DllImport("Magnification.dll", CallingConvention = CallingConvention.Winapi, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool MagInitialize();
 
-        [DllImport("Magnification.dll", CallingConvention = CallingConvention.StdCall)]
+        [DllImport("Magnification.dll", CallingConvention = CallingConvention.Winapi, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool MagSetWindowSource(IntPtr hwnd, RectNative rect);
 
-        [DllImport("Magnification.dll", CallingConvention = CallingConvention.StdCall)]
+        [DllImport("Magnification.dll", CallingConvention = CallingConvention.Winapi, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool MagSetWindowTransform(IntPtr hwnd, ref MagTransform transform);
 
-        [DllImport("Magnification.dll", CallingConvention = CallingConvention.StdCall)]
+        [DllImport("Magnification.dll", CallingConvention = CallingConvention.Winapi, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool MagSetColorEffect(IntPtr hwnd, ref MagColorEffect effect);
 
-        [DllImport("Magnification.dll", CallingConvention = CallingConvention.StdCall)]
-        private static extern bool MagSetImageScalingCallback(IntPtr hwnd, MagImageScalingCallback callback);
+        [DllImport("Magnification.dll", CallingConvention = CallingConvention.Winapi, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool MagSetWindowFilterList(IntPtr hwnd, uint mode, int count, IntPtr windows);
 
-        [DllImport("Magnification.dll", CallingConvention = CallingConvention.StdCall)]
-        private static extern bool MagSetWindowFilterList(IntPtr hwnd, uint mode, int count, IntPtr[] windows);
+        [DllImport("dwmapi.dll", PreserveSig = false, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool DwmIsCompositionEnabled();
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern IntPtr CreateWindowEx(
@@ -159,11 +143,9 @@ namespace WindowNegativer
         };
 
         private static bool _initialized;
-        private static readonly MagImageScalingCallback ScalingCallback = OnMagImageScaling;
         private IntPtr _hwnd;
         private IntPtr _excludedWindow;
         private RectNative _sourceRect;
-        private readonly bool _useScalingCallback = Environment.OSVersion.Version.Major < 10;
 
         private void ApplyMagnifierSettings()
         {
@@ -175,64 +157,11 @@ namespace WindowNegativer
             var transform = IdentityTransform;
             MagSetWindowTransform(_hwnd, ref transform);
 
-            if (_useScalingCallback)
-            {
-                MagSetImageScalingCallback(_hwnd, ScalingCallback);
-            }
-            else
-            {
-                var effect = NegativeEffect;
-                MagSetColorEffect(_hwnd, ref effect);
-            }
+            var effect = NegativeEffect;
+            MagSetColorEffect(_hwnd, ref effect);
 
             ApplyFilter();
             MagSetWindowSource(_hwnd, _sourceRect);
-        }
-
-        private static bool OnMagImageScaling(
-            IntPtr hwnd,
-            IntPtr srcdata,
-            MagImageHeader srcheader,
-            IntPtr destdata,
-            MagImageHeader destheader,
-            RectNative unclipped,
-            RectNative clipped,
-            IntPtr dirty)
-        {
-            int sourceSize = checked((int)srcheader.cbSize.ToUInt64());
-            int destinationSize = checked((int)destheader.cbSize.ToUInt64());
-
-            if (sourceSize <= 0 || destinationSize <= 0)
-            {
-                return false;
-            }
-
-            byte[] source = new byte[sourceSize];
-            byte[] destination = new byte[destinationSize];
-            Marshal.Copy(srcdata, source, 0, sourceSize);
-
-            int width = (int)Math.Min(srcheader.Width, destheader.Width);
-            int height = (int)Math.Min(srcheader.Height, destheader.Height);
-            int srcStride = (int)srcheader.Stride;
-            int destStride = (int)destheader.Stride;
-            int rowBytes = Math.Min(width * 4, Math.Min(srcStride, destStride));
-
-            for (int y = 0; y < height; y++)
-            {
-                int srcRow = y * srcStride;
-                int destRow = y * destStride;
-
-                for (int x = 0; x < rowBytes; x += 4)
-                {
-                    destination[destRow + x] = (byte)(255 - source[srcRow + x]);
-                    destination[destRow + x + 1] = (byte)(255 - source[srcRow + x + 1]);
-                    destination[destRow + x + 2] = (byte)(255 - source[srcRow + x + 2]);
-                    destination[destRow + x + 3] = source[srcRow + x + 3];
-                }
-            }
-
-            Marshal.Copy(destination, 0, destdata, destinationSize);
-            return true;
         }
 
         public void SetExcludedWindow(IntPtr hwnd)
@@ -273,6 +202,11 @@ namespace WindowNegativer
         {
             if (!_initialized)
             {
+                if (Environment.OSVersion.Version.Major < 10 && !DwmIsCompositionEnabled())
+                {
+                    throw new InvalidOperationException("Desktop composition must be enabled on this version of Windows.");
+                }
+
                 _initialized = MagInitialize();
                 if (!_initialized)
                 {
@@ -338,7 +272,16 @@ namespace WindowNegativer
                 return;
             }
 
-            MagSetWindowFilterList(_hwnd, MW_FILTERMODE_EXCLUDE, 1, new[] { _excludedWindow });
+            IntPtr windows = Marshal.AllocHGlobal(IntPtr.Size);
+            try
+            {
+                Marshal.WriteIntPtr(windows, _excludedWindow);
+                MagSetWindowFilterList(_hwnd, MW_FILTERMODE_EXCLUDE, 1, windows);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(windows);
+            }
         }
     }
 }
