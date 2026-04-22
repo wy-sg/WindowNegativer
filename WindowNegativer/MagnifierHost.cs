@@ -138,6 +138,21 @@ namespace WindowNegativer
         private IntPtr _excludedWindow;
         private RectNative _sourceRect;
 
+        private void ApplyMagnifierSettings()
+        {
+            if (_hwnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            var transform = IdentityTransform;
+            var effect = NegativeEffect;
+            MagSetWindowTransform(_hwnd, ref transform);
+            MagSetColorEffect(_hwnd, ref effect);
+            ApplyFilter();
+            MagSetWindowSource(_hwnd, _sourceRect);
+        }
+
         public void SetExcludedWindow(IntPtr hwnd)
         {
             _excludedWindow = hwnd;
@@ -156,7 +171,7 @@ namespace WindowNegativer
 
             if (_hwnd != IntPtr.Zero)
             {
-                MagSetWindowSource(_hwnd, _sourceRect);
+                ApplyMagnifierSettings();
             }
         }
 
@@ -167,7 +182,7 @@ namespace WindowNegativer
                 return;
             }
 
-            MagSetWindowSource(_hwnd, _sourceRect);
+            ApplyMagnifierSettings();
             InvalidateRect(_hwnd, IntPtr.Zero, false);
             UpdateWindow(_hwnd);
         }
@@ -202,12 +217,7 @@ namespace WindowNegativer
                 throw new InvalidOperationException("Failed to create magnifier window.");
             }
 
-            var transform = IdentityTransform;
-            var effect = NegativeEffect;
-            MagSetWindowTransform(_hwnd, ref transform);
-            MagSetColorEffect(_hwnd, ref effect);
-            ApplyFilter();
-            MagSetWindowSource(_hwnd, _sourceRect);
+            ApplyMagnifierSettings();
 
             return new HandleRef(this, _hwnd);
         }
@@ -235,6 +245,8 @@ namespace WindowNegativer
                 Math.Max(1, (int)rcBoundingBox.Width),
                 Math.Max(1, (int)rcBoundingBox.Height),
                 SWP_NOZORDER | SWP_NOACTIVATE);
+
+            ApplyMagnifierSettings();
         }
 
         private void ApplyFilter()
