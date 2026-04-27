@@ -77,21 +77,16 @@ namespace WindowNegativer
 
         private void UpdateOverlayVisibility()
         {
-            if (_overlayWindow is null)
-            {
-                return;
-            }
+            if (_overlayWindow is null) return;
 
             if (IsVisible)
             {
                 if (!_overlayWindow.IsVisible)
-                {
-                    _overlayWindow.Show();
-                }
+                    _overlayWindow.ShowOverlay();
             }
             else if (_overlayWindow.IsVisible)
             {
-                _overlayWindow.Hide();
+                _overlayWindow.HideOverlay();
             }
         }
 

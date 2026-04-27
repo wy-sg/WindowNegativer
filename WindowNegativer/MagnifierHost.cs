@@ -4,8 +4,19 @@ using System.Windows.Interop;
 
 namespace WindowNegativer
 {
-    internal sealed class MagnifierHost : HwndHost
+    internal sealed class MagnifierHost : HwndHost, IDisposable
     {
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr SetWindowLong(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetWindowLong(IntPtr hWnd, int nIndex);
+
+        private const int GWL_STYLE = -16;
+        private const int WS_CHILD_STYLE = unchecked((int)0x40000000);
         [StructLayout(LayoutKind.Sequential)]
         private struct RectNative
         {
@@ -117,8 +128,16 @@ namespace WindowNegativer
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool UpdateWindow(IntPtr hWnd);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr DefWindowProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
         private const int WS_CHILD = unchecked((int)0x40000000);
+        private const int WM_NCHITTEST = 0x0084;
+        private const int HTTRANSPARENT = -1;
         private const int WS_VISIBLE = 0x10000000;
+        private const int WS_DISABLED = 0x08000000;
+        private const int WS_EX_TRANSPARENT = 0x00000020;
+        private const int WS_EX_NOACTIVATE = 0x08000000;
         private const uint SWP_NOZORDER = 0x0004;
         private const uint SWP_NOACTIVATE = 0x0010;
         private const uint MW_FILTERMODE_EXCLUDE = 0;
@@ -215,10 +234,10 @@ namespace WindowNegativer
             }
 
             _hwnd = CreateWindowEx(
-                0,
+                WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
                 "Magnifier",
                 null,
-                WS_CHILD | WS_VISIBLE,
+                WS_CHILD | WS_VISIBLE | WS_DISABLED,
                 0,
                 0,
                 Math.Max(1, (int)ActualWidth),
@@ -236,6 +255,17 @@ namespace WindowNegativer
             ApplyMagnifierSettings();
 
             return new HandleRef(this, _hwnd);
+        }
+
+        protected override IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg == WM_NCHITTEST)
+            {
+                handled = true;
+                return (IntPtr)HTTRANSPARENT;
+            }
+
+            return base.WndProc(hwnd, msg, wParam, lParam, ref handled);
         }
 
         protected override void DestroyWindowCore(HandleRef hwnd)
@@ -263,6 +293,63 @@ namespace WindowNegativer
                 SWP_NOZORDER | SWP_NOACTIVATE);
 
             ApplyMagnifierSettings();
+        }
+
+        public void SetParent(IntPtr parentHwnd)
+        {
+            if (_hwnd == IntPtr.Zero)
+            {
+                EnsureCreated(parentHwnd);
+            }
+            else
+            {
+                SetParent(_hwnd, parentHwnd);
+            }
+        }
+
+        public void UpdateChildSize(int width, int height)
+        {
+            if (_hwnd == IntPtr.Zero) return;
+            SetWindowPos(_hwnd, IntPtr.Zero, 0, 0,
+                Math.Max(1, width), Math.Max(1, height),
+                SWP_NOZORDER | SWP_NOACTIVATE);
+            ApplyMagnifierSettings();
+        }
+
+        private void EnsureCreated(IntPtr parentHwnd)
+        {
+            if (_hwnd != IntPtr.Zero) return;
+
+            if (!_initialized)
+            {
+                if (Environment.OSVersion.Version.Major < 10 && !DwmIsCompositionEnabled())
+                    throw new InvalidOperationException("Desktop composition must be enabled on this version of Windows.");
+                _initialized = MagInitialize();
+                if (!_initialized)
+                    throw new InvalidOperationException("Magnification API initialization failed.");
+            }
+
+            _hwnd = CreateWindowEx(
+                WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
+                "Magnifier", null,
+                WS_CHILD | WS_VISIBLE | WS_DISABLED,
+                0, 0, 1, 1,
+                parentHwnd, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+
+            if (_hwnd == IntPtr.Zero)
+                throw new InvalidOperationException("Failed to create magnifier window.");
+
+            ApplyMagnifierSettings();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (_hwnd != IntPtr.Zero)
+            {
+                DestroyWindow(_hwnd);
+                _hwnd = IntPtr.Zero;
+            }
+            base.Dispose(disposing);
         }
 
         private void ApplyFilter()
