@@ -90,9 +90,8 @@ namespace WindowNegativer
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool MagSetWindowFilterList(IntPtr hwnd, uint mode, int count, IntPtr windows);
 
-        [DllImport("dwmapi.dll", PreserveSig = false, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool DwmIsCompositionEnabled();
+        [DllImport("dwmapi.dll", PreserveSig = true)]
+        private static extern int DwmIsCompositionEnabled([MarshalAs(UnmanagedType.Bool)] out bool pfEnabled);
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern IntPtr CreateWindowEx(
@@ -136,6 +135,7 @@ namespace WindowNegativer
         private const int HTTRANSPARENT = -1;
         private const int WS_VISIBLE = 0x10000000;
         private const int WS_DISABLED = 0x08000000;
+        private const int MS_INVERTCOLORS = 0x0004;
         private const int WS_EX_TRANSPARENT = 0x00000020;
         private const int WS_EX_NOACTIVATE = 0x08000000;
         private const uint SWP_NOZORDER = 0x0004;
@@ -162,9 +162,47 @@ namespace WindowNegativer
         };
 
         private static bool _initialized;
+        private readonly bool _useBuiltInInvertStyle;
         private IntPtr _hwnd;
         private IntPtr _excludedWindow;
         private RectNative _sourceRect;
+
+        public MagnifierHost(bool useBuiltInInvertStyle = false)
+        {
+            _useBuiltInInvertStyle = useBuiltInInvertStyle;
+        }
+
+        private static bool IsDwmCompositionEnabled()
+        {
+            return DwmIsCompositionEnabled(out bool enabled) == 0 && enabled;
+        }
+
+        private static void EnsureMagnifierApiInitialized()
+        {
+            if (_initialized)
+            {
+                return;
+            }
+
+            if (Environment.Is64BitOperatingSystem && !Environment.Is64BitProcess)
+            {
+                throw new InvalidOperationException(
+                    "The Magnification API is not supported under WOW64. Build and run x64 on 64-bit Windows.");
+            }
+
+            if (Environment.OSVersion.Version.Major < 10 && !IsDwmCompositionEnabled())
+            {
+                throw new InvalidOperationException("Desktop composition must be enabled on this version of Windows.");
+            }
+
+            _initialized = MagInitialize();
+            if (!_initialized)
+            {
+                throw new InvalidOperationException("Magnification API initialization failed.");
+            }
+        }
+
+        private int MagnifierWindowStyle => WS_CHILD | WS_VISIBLE | (_useBuiltInInvertStyle ? MS_INVERTCOLORS : 0);
 
         private void ApplyMagnifierSettings()
         {
@@ -176,8 +214,11 @@ namespace WindowNegativer
             var transform = IdentityTransform;
             MagSetWindowTransform(_hwnd, ref transform);
 
-            var effect = NegativeEffect;
-            MagSetColorEffect(_hwnd, ref effect);
+            if (!_useBuiltInInvertStyle)
+            {
+                var effect = NegativeEffect;
+                MagSetColorEffect(_hwnd, ref effect);
+            }
 
             ApplyFilter();
             MagSetWindowSource(_hwnd, _sourceRect);
@@ -219,25 +260,13 @@ namespace WindowNegativer
 
         protected override HandleRef BuildWindowCore(HandleRef hwndParent)
         {
-            if (!_initialized)
-            {
-                if (Environment.OSVersion.Version.Major < 10 && !DwmIsCompositionEnabled())
-                {
-                    throw new InvalidOperationException("Desktop composition must be enabled on this version of Windows.");
-                }
-
-                _initialized = MagInitialize();
-                if (!_initialized)
-                {
-                    throw new InvalidOperationException("Magnification API initialization failed.");
-                }
-            }
+            EnsureMagnifierApiInitialized();
 
             _hwnd = CreateWindowEx(
-                WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
+                0,
                 "Magnifier",
                 null,
-                WS_CHILD | WS_VISIBLE | WS_DISABLED,
+                MagnifierWindowStyle,
                 0,
                 0,
                 Math.Max(1, (int)ActualWidth),
@@ -320,19 +349,12 @@ namespace WindowNegativer
         {
             if (_hwnd != IntPtr.Zero) return;
 
-            if (!_initialized)
-            {
-                if (Environment.OSVersion.Version.Major < 10 && !DwmIsCompositionEnabled())
-                    throw new InvalidOperationException("Desktop composition must be enabled on this version of Windows.");
-                _initialized = MagInitialize();
-                if (!_initialized)
-                    throw new InvalidOperationException("Magnification API initialization failed.");
-            }
+            EnsureMagnifierApiInitialized();
 
             _hwnd = CreateWindowEx(
-                WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
+                0,
                 "Magnifier", null,
-                WS_CHILD | WS_VISIBLE | WS_DISABLED,
+                MagnifierWindowStyle,
                 0, 0, 1, 1,
                 parentHwnd, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
 

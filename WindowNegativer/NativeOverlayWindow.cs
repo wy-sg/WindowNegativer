@@ -71,6 +71,7 @@ namespace WindowNegativer
         private const int WS_EX_TOPMOST    = 0x00000008;
         private const int WS_POPUP         = unchecked((int)0x80000000);
         private const int WS_VISIBLE       = 0x10000000;
+        private const int WS_CLIPCHILDREN  = 0x02000000;
         private const uint LWA_ALPHA       = 0x00000002;
         private const int SW_SHOWNOACTIVATE = 4;
         private const int SW_HIDE           = 0;
@@ -112,7 +113,7 @@ namespace WindowNegativer
                 WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST,
                 ClassName,
                 null,
-                WS_POPUP,
+                WS_POPUP | WS_CLIPCHILDREN,
                 0, 0, 1, 1,
                 IntPtr.Zero, IntPtr.Zero, GetModuleHandle(null), IntPtr.Zero);
 
@@ -122,7 +123,7 @@ namespace WindowNegativer
             // Fully opaque layered window — click-through comes from WS_EX_TRANSPARENT, not low alpha
             SetLayeredWindowAttributes(_hwnd, 0, 255, LWA_ALPHA);
 
-            _magnifierHost = new MagnifierHost();
+            _magnifierHost = new MagnifierHost(useBuiltInInvertStyle: true);
             _magnifierHost.SetParent(_hwnd);
             // Exclude the overlay itself from its own magnifier capture to prevent feedback
             _magnifierHost.SetExcludedWindow(_hwnd);

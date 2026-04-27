@@ -37,6 +37,7 @@ namespace WindowNegativer
 
         // Win7 path: pure native overlay
         private readonly NativeOverlayWindow? _nativeOverlay;
+        private bool _nativeOverlayVisible;
 
         [DllImport("ntdll.dll", SetLastError = true)]
         private static extern int RtlGetVersion(ref OSVERSIONINFOEX lpVersionInformation);
@@ -95,7 +96,12 @@ namespace WindowNegativer
                     // nothing needed — NativeOverlayWindow already excludes itself
                 };
 
-                Closed += (_, _) => _nativeOverlay.Dispose();
+                Closed += (_, _) =>
+                {
+                    _nativeOverlay!.Hide();
+                    _nativeOverlay!.Dispose();
+                    _nativeOverlayVisible = false;
+                };
             }
             else
             {
@@ -173,14 +179,40 @@ namespace WindowNegativer
 
         public void ShowOverlay()
         {
-            if (IsLegacyWindows) _nativeOverlay!.Show();
-            else Show();
+            if (IsLegacyWindows)
+            {
+                if (!_nativeOverlayVisible)
+                {
+                    _nativeOverlay!.Show();
+                    _nativeOverlayVisible = true;
+                }
+
+                return;
+            }
+
+            if (!IsVisible)
+            {
+                Show();
+            }
         }
 
         public void HideOverlay()
         {
-            if (IsLegacyWindows) _nativeOverlay!.Hide();
-            else Hide();
+            if (IsLegacyWindows)
+            {
+                if (_nativeOverlayVisible)
+                {
+                    _nativeOverlay!.Hide();
+                    _nativeOverlayVisible = false;
+                }
+
+                return;
+            }
+
+            if (IsVisible)
+            {
+                Hide();
+            }
         }
     }
 }

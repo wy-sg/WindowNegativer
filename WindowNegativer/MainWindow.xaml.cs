@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
@@ -39,7 +39,11 @@ namespace WindowNegativer
             LocationChanged += (_, _) => UpdateOverlayBounds();
             SizeChanged += (_, _) => UpdateOverlayBounds();
             IsVisibleChanged += (_, _) => UpdateOverlayVisibility();
-            StateChanged += (_, _) => UpdateOverlayBounds();
+            StateChanged += (_, _) =>
+            {
+                UpdateOverlayBounds();
+                UpdateOverlayVisibility();
+            };
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -79,12 +83,11 @@ namespace WindowNegativer
         {
             if (_overlayWindow is null) return;
 
-            if (IsVisible)
+            if (IsVisible && WindowState != WindowState.Minimized)
             {
-                if (!_overlayWindow.IsVisible)
-                    _overlayWindow.ShowOverlay();
+                _overlayWindow.ShowOverlay();
             }
-            else if (_overlayWindow.IsVisible)
+            else
             {
                 _overlayWindow.HideOverlay();
             }
