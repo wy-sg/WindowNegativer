@@ -19,6 +19,29 @@ namespace WindowNegativer
 
         private const uint WM_SYSCOMMAND = 0x0112;
 
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfo lpmi);
+
+        private const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Rect32
+        {
+            public int Left, Top, Right, Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MonitorInfo
+        {
+            public uint cbSize;
+            public Rect32 rcMonitor;
+            public Rect32 rcWork;
+            public uint dwFlags;
+        }
+
         #endregion
 
         private NegativeOverlayWindow? _overlayWindow;
@@ -202,11 +225,15 @@ namespace WindowNegativer
             else
             {
                 _restoreBounds = new Rect(Left, Top, Width, Height);
-                var area = SystemParameters.WorkArea;
-                Left = area.Left;
-                Top = area.Top;
-                Width = area.Width;
-                Height = area.Height;
+                var hwnd = new WindowInteropHelper(this).Handle;
+                var hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                var mi = new MonitorInfo { cbSize = (uint)Marshal.SizeOf<MonitorInfo>() };
+                GetMonitorInfo(hMonitor, ref mi);
+                var dpi = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice.M11 ?? 1.0;
+                Left = mi.rcWork.Left * dpi;
+                Top = mi.rcWork.Top * dpi;
+                Width = (mi.rcWork.Right - mi.rcWork.Left) * dpi;
+                Height = (mi.rcWork.Bottom - mi.rcWork.Top) * dpi;
             }
 
             UpdateOverlayBounds();
